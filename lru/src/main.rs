@@ -1,46 +1,47 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::hash::Hash;
 
-struct LRUNode<T> {
-    next: Option<Rc<RefCell<LRUNode<T>>>>,
-    prev: Option<Rc<RefCell<LRUNode<T>>>>,
-    key: T,
-    value: T,
+struct LRUNode<K: Hash + Eq + PartialEq + Clone, V: Clone> {
+    next: Option<Rc<RefCell<LRUNode<K, V>>>>,
+    prev: Option<Rc<RefCell<LRUNode<K, V>>>>,
+    key: K,
+    value: V,
 }
 
-struct LRUCache {
-    head: Option<Rc<RefCell<LRUNode<i32>>>>,
-    map: HashMap<i32, Rc<RefCell<LRUNode<i32>>>>,
+struct LRUCache<K: Hash + Eq + PartialEq + Clone, V: Clone> {
+    head: Option<Rc<RefCell<LRUNode<K, V>>>>,
+    map: HashMap<K, Rc<RefCell<LRUNode<K, V>>>>,
     capacity: i32,
     len: i32,
 }
 
 
-impl<T> LRUNode<T> {
-    fn new(key: T, value: T) -> Self {
+impl<K: Hash + Eq + PartialEq + Clone, V: Clone> LRUNode<K, V> {
+    fn new(key: K, value: V) -> Self {
         Self { next: None, prev: None, key, value }
     }
 }
 
-impl LRUCache {
+impl<K: Hash + Eq + PartialEq + Clone, V: Clone> LRUCache<K, V> {
     fn new(capacity: i32) -> Self {
         Self { head: None, map: HashMap::new(), capacity, len: 0 }
     }
     
     // 使用hashmap索引查找
-    fn get(&mut self, key: i32) -> i32 {
+    fn get(&mut self, key: K) -> Option<V> {
         // 如果存在则移到链首
         if let Some(node) = self.map.get(&key) {
-            let v = node.borrow_mut().value;
+            let v = node.borrow_mut().value.clone();
             self.move_to_head(node.clone());
-            return v;
+            return Some(v);
         } else {
-            return -1;
+            return None;
         }
     }
     
-    fn put(&mut self, key: i32, value: i32) {
+    fn put(&mut self, key: K, value: V) {
         // 如果key已存在则覆盖, 并移动到链首
         if let Some(node) = self.map.get(&key) {
             node.borrow_mut().value = value;
@@ -53,7 +54,7 @@ impl LRUCache {
                 //  1. 删除链表节点和哈希表节点
                 self.delete(t.clone());
                 //  2. 链首插入新元素, 包括接节点和hashmap
-                let node = Rc::new(RefCell::new(LRUNode::new(key, value)));
+                let node = Rc::new(RefCell::new(LRUNode::new(key.clone(), value.clone())));
                 //      2.1 插入链首
                 self.move_to_head(node.clone());
                 //      2.2 插入hashmap
@@ -62,7 +63,7 @@ impl LRUCache {
                 self.len += 1;
                 // 如果LRU缓存未满
                 //  1. 链首插入新元素, 包括接节点和hashmap
-                let node = Rc::new(RefCell::new(LRUNode::new(key, value)));
+                let node = Rc::new(RefCell::new(LRUNode::new(key.clone(), value.clone())));
                 //      1.1 插入链首
                 self.move_to_head(node.clone());
                 //      1.2 插入hashmap
@@ -71,7 +72,7 @@ impl LRUCache {
         }
     }
 
-    fn delete(&mut self, node: Rc<RefCell<LRUNode<i32>>>) {
+    fn delete(&mut self, node: Rc<RefCell<LRUNode<K, V>>>) {
         self.map.remove(&node.borrow().key);
         let prev = node.borrow_mut().prev.as_ref().unwrap().clone();
         let next = node.borrow_mut().next.as_ref().unwrap().clone();
@@ -79,7 +80,7 @@ impl LRUCache {
         next.borrow_mut().prev = Some(prev.clone());
     }
 
-    fn move_to_head(&mut self, node: Rc<RefCell<LRUNode<i32>>>) {
+    fn move_to_head(&mut self, node: Rc<RefCell<LRUNode<K, V>>>) {
         if self.head.is_none() {
             self.head = Some(node.clone());
             node.borrow_mut().next = Some(node.clone());
@@ -112,7 +113,7 @@ impl LRUCache {
 
     fn erase(&mut self) { }
     fn pop_back(&mut self) { }
-    fn push_front(&mut self, node: Rc<RefCell<LRUNode<i32>>>) { }
+    fn push_front(&mut self, node: Rc<RefCell<LRUNode<K, V>>>) { }
 }
 
 
@@ -124,16 +125,16 @@ fn test() {
     obj.put(1, 1);
     obj.put(2, 2);
     // 1 -> 2
-    assert_eq!(1, obj.get(1));
+    assert_eq!(Some(1), obj.get(1));
     // 3 -> 1
     obj.put(3, 3);
     // should be -1 since lru cap = 2
-    assert_eq!(-1, obj.get(2));
+    assert_eq!(None, obj.get(2));
     // 4 -> 3
     obj.put(4, 4);
-    assert_eq!(-1, obj.get(1));
-    assert_eq!(3, obj.get(3));
-    assert_eq!(4, obj.get(4));
+    assert_eq!(None, obj.get(1));
+    assert_eq!(Some(3), obj.get(3));
+    assert_eq!(Some(4), obj.get(4));
 
     // ["LRUCache","put","put","get",// "put","get","put","get","get","get"]
     // [[2],[1,0],[2,2],[1]// ,[3,3],[2],[4,4],[1],[3],[4]]
@@ -143,24 +144,24 @@ fn test() {
     // 2:2 -> 1:0
     obj.put(2, 2);
     // 1:0 -> 2:2
-    assert_eq!(0, obj.get(1));
+    assert_eq!(Some(0), obj.get(1));
     // 3:3 -> 1:0
     obj.put(3, 3);
-    assert_eq!(-1, obj.get(2));
+    assert_eq!(None, obj.get(2));
     // 4:4 -> 3:3
     obj.put(4, 4);
-    assert_eq!(-1, obj.get(1));
-    assert_eq!(3, obj.get(3));
-    assert_eq!(4, obj.get(4));
+    assert_eq!(None, obj.get(1));
+    assert_eq!(Some(3), obj.get(3));
+    assert_eq!(Some(4), obj.get(4));
 
     // ["LRUCache","put","get","put","get","get"]
     // [[1],[2,1],[2],[3,2],[2],[3]]
     let mut obj = LRUCache::new(1);
     obj.put(2, 1);
-    assert_eq!(1, obj.get(2));
+    assert_eq!(Some(1), obj.get(2));
     obj.put(3, 2);
-    assert_eq!(-1, obj.get(2));
-    assert_eq!(2, obj.get(3));
+    assert_eq!(None, obj.get(2));
+    assert_eq!(Some(2), obj.get(3));
 
     // ["LRUCache","put","put","get","get","put","get","get","get"]
     // [[2],[2,1],[3,2],[3],[2],[4,3],[2],[3],[4]]
@@ -168,19 +169,19 @@ fn test() {
     let mut obj = LRUCache::new(2);
     // 2:1
     obj.put(2, 1);
-    assert_eq!(1, obj.get(2));
+    assert_eq!(Some(1), obj.get(2));
     // 3:2 -> 2:1
     obj.put(3, 2);
-    assert_eq!(2, obj.get(3));
+    assert_eq!(Some(2), obj.get(3));
     // 2:1 -> 3:2
-    assert_eq!(1, obj.get(2));
+    assert_eq!(Some(1), obj.get(2));
     // 4:3 -> 2:1
     obj.put(4, 3);
     // 2:1 -> 4:3
-    assert_eq!(1, obj.get(2));
-    assert_eq!(-1, obj.get(3));
+    assert_eq!(Some(1), obj.get(2));
+    assert_eq!(None, obj.get(3));
     // 4:3 -> 2:1
-    assert_eq!(3, obj.get(4));
+    assert_eq!(Some(3), obj.get(4));
 }
 
 

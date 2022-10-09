@@ -10,3 +10,5 @@
 - Rust中HashMap的使用
 	* `get`
 - `Rc<RefCell<T>>`
+- Rust中的泛型
+	* 使用`<T: a + b + c>`的格式做trait bond
