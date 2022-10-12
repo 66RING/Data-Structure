@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, BTreeSet};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::hash::Hash;
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 struct LFUNode<K, V> {
@@ -13,9 +14,9 @@ struct LFUNode<K, V> {
     value: V,
 }
 
-struct LFUCache {
-    key_table: HashMap<i32, LFUNode<i32, i32>>,
-    order_set: BTreeSet<LFUNode<i32, i32>>,
+struct LFUCache<K, V> {
+    key_table: HashMap<K, LFUNode<K, V>>,
+    order_set: BTreeSet<LFUNode<K, V>>,
     capacity: i32,
     time: i32,
 }
@@ -29,6 +30,7 @@ impl<K: Eq, V: Eq> Ord for LFUNode<K, V> {
         }
     }
 }
+
 impl<K: Eq, V: Eq> PartialOrd for LFUNode<K, V> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -36,18 +38,13 @@ impl<K: Eq, V: Eq> PartialOrd for LFUNode<K, V> {
 }
 
 
-/**
- * `&self` means the method takes an immutable reference.
- * If you need a mutable reference, change it to `&mut self` instead.
- */
-impl LFUCache {
-
+impl<K: Hash + Eq + Clone + Copy, V: Eq + Clone + Copy> LFUCache<K, V> {
     fn new(capacity: i32) -> Self {
         Self { key_table: HashMap::new(), order_set: BTreeSet::new(), capacity, time: 0 }
     }
     
     // 获取元素, 更新lfu信息， 返回value, 不存在则返回-1
-    fn get(&mut self, key: i32) -> i32 {
+    fn get(&mut self, key: K) -> Option<V> {
         if let Some(cache) = self.key_table.get_mut(&key) {
             // 更新
             self.order_set.remove(&cache);
@@ -55,13 +52,13 @@ impl LFUCache {
             cache.time = self.time + 1;
             self.time += 1;
             self.order_set.insert(*cache);
-            return cache.value;
+            Some(cache.value)
         } else {
-            return -1;
+            None
         }
     }
     
-    fn put(&mut self, key: i32, value: i32) {
+    fn put(&mut self, key: K, value: V) {
         if self.capacity == 0 {
             return
         }
@@ -94,3 +91,36 @@ impl LFUCache {
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::LFUCache;
+    #[test]
+    fn basics() {
+        let mut l = LFUCache::new(2);
+        l.put(3, 1);
+        l.put(2, 1);
+        l.put(2, 2);
+        l.put(4, 4);
+        // 4 3
+        // 2
+        assert_eq!(l.get(2), Some(2));
+
+        let mut l = LFUCache::new(2);
+        l.put(1, 1);
+        l.put(2, 2);
+        assert_eq!(l.get(1), Some(1));
+        // 3 x2
+        // 1
+        l.put(3, 3);
+        assert_eq!(l.get(2), None);
+        // x2
+        // 3 1
+        assert_eq!(l.get(3), Some(3));
+        // 4 x2
+        // 3 x1
+        l.put(4, 4);
+        assert_eq!(l.get(1), None);
+        assert_eq!(l.get(3), Some(3));
+        assert_eq!(l.get(4), Some(4));
+    }
+}
