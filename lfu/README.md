@@ -35,3 +35,12 @@
 
 
 ## 双哈希表
+
+- 一个HashMap做所有kv的索引, 一个HashMap记录各个freq的lru链表
+- 记录所有`freq list`中最小的freq: `min_freq`
+- 淘汰时从`min_freq`所在的list中淘汰末尾元素
+- 使用/更新一个节点时, 更新他的"lfu值"
+	* 它的freq++
+	* 如果原来所在的freq list空了则删除freq table中的内存
+	* 如果原来所在的freq list空了且freq是`min_freq`则更新`min_freq`
+- 移动后记得更新链表, erase元素的`prev.next`和`next.prev`
