@@ -25,4 +25,6 @@
 		+ 在不销毁`Rc`, `RefCell`的情况下取出内部值, 那只能取出引用
 		+ `Ref::map(Ref, || {&val})`, e.g. `Ref::map(node.borrow(), |node| &node.value )`
 	* `take()`取出Option, 原来的位置置None
+	* **`Rc::try_unwrap()`可以用于防止内存泄露**
+		+ 当Rc引用为1时才能返回内部元素
 

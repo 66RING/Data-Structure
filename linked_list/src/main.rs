@@ -83,6 +83,8 @@ impl<T> List<T> {
                 Some(new_head) => {
                     // 用take清空prev
                     // 这里是双向指针, 但是不循环的
+                    // **新对上一个节点引用的情况是必须的**
+                    //  因为Rc::try_unwrap().ok()会要求Rc引用为1
                     new_head.borrow_mut().prev.take();
                     self.head = Some(new_head);
                 }
@@ -177,6 +179,7 @@ mod test {
         // Check exhaustion
         assert_eq!(list.pop_front(), Some(1));
         assert_eq!(list.pop_front(), None);
+        assert_eq!(list.pop_front(), None);
 
         // ---- back -----
 
@@ -202,6 +205,8 @@ mod test {
 
         // Check exhaustion
         assert_eq!(list.pop_back(), Some(1));
+        assert_eq!(list.pop_back(), None);
+        assert_eq!(list.pop_back(), None);
         assert_eq!(list.pop_back(), None);
     }
 
