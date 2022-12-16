@@ -19,6 +19,17 @@
 
 难点是如何分裂
 
+## rust tips
+
+- trait
+    * bit操作: TODO
+    * 哈希操作: TODO
+    * 为何RefCell不好: ⭐ review 理清, 理解
+        + https://rust-unofficial.github.io/too-many-lists/fourth-peek.html
+        + https://users.rust-lang.org/t/how-to-return-reference-to-value-in-rc-or-refcell/76729
+- 习俗
+    * getter, setter命名规范: getter函数同名, setter函数前加个`set_`
+
 
 ## bucket
 
@@ -66,7 +77,7 @@
     * 桶重新分配(重映射 + 数据迁移)
     * 如果桶的深度和目录全局深度相同, 则目录需要扩展, 在重新分配
     * 否则就仅是当前桶数据的重新分配
-    * 重新分配
+    * 插入新entry然后重新分配
         1. 扩容: dep + 基本remap
         2. 迁移: 两种情况⭐`local_depth == global_depth`的桶和`local_depth != global_depth`的桶, 甚至可能`local_depth`落后`global_depth`很多
             - TODO: 大总结: 为什么需要(`local_depth`落后`global_depth`很多⭐⭐⭐)
