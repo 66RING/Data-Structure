@@ -37,9 +37,8 @@ fn main() {
             "search" => {
                 let key = words.next().unwrap().parse::<i64>().unwrap();
                 // let mut value = String::new();
-                let mut value: i64 = -1;
-                // dir.search(&key, &mut value);
-                println!("{}", value);
+                let value =dir.get(&key);
+                println!("{:#?}", value);
             },
             "display" => {
                 dir.display();

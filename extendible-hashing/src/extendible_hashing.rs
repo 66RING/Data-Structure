@@ -181,14 +181,22 @@ impl<K, V> Directory<K, V>
 
     pub fn get(&self, key: &K) -> Option<Ref<V>> {
         let bucket_id = self.hash(&key);
-        // let bucket = self.entries[bucket_id].clone();
-        Some(Ref::map(self.entries[bucket_id].borrow(), |b| b.get(&key).unwrap()))
+        let bucket = self.entries[bucket_id].clone();
+        if bucket.borrow().contains_key(&key) {
+            Some(Ref::map(self.entries[bucket_id].borrow(), |b| b.get(&key).unwrap()))
+        } else {
+            None
+        }
     }
 
     pub fn get_mut(&self, key: &K) -> Option<RefMut<V>> {
         let bucket_id = self.hash(&key);
-        // let bucket = self.entries[bucket_id].borrow();
-        Some(RefMut::map(self.entries[bucket_id].borrow_mut(), |b| b.get_mut(&key).unwrap()))
+        let bucket = self.entries[bucket_id].borrow();
+        if bucket.contains_key(&key) {
+            Some(RefMut::map(self.entries[bucket_id].borrow_mut(), |b| b.get_mut(&key).unwrap()))
+        } else {
+            None
+        }
     }
 
     /// 显示目录项映射关系和内容
