@@ -13,7 +13,7 @@ struct Bucket<K, V> {
     local_depth: usize,
 }
 
-pub struct Directory<K, V> {
+pub struct ExtendiableHash<K, V> {
     entries: Vec<Rc<RefCell<Bucket<K, V>>>>,
     global_depth: usize,
     bucket_cap: usize,
@@ -26,7 +26,7 @@ pub enum Mode {
 }
 
 impl<K, V> Bucket<K, V> 
-    where K: Hash + Eq + Clone, V: std::fmt::Display + Clone + Copy
+    where K: Hash + Eq + Clone, V: std::fmt::Display + Clone + Copy + Ord
 {
     pub fn new(bucket_cap: usize, local_depth: usize) -> Self {
         Self {
@@ -78,6 +78,10 @@ impl<K, V> Bucket<K, V>
     pub fn local_depth(&self) -> usize {
         self.local_depth
     }
+
+    pub fn table_mut(&mut self) -> &mut HashMap<K, V> {
+        &mut self.table
+    }
     /// 增加depth值, 返回新depth
     pub fn depth_up(&mut self) -> usize {
         self.local_depth += 1;
@@ -97,7 +101,12 @@ impl<K, V> Bucket<K, V>
 
     /// 显示桶中的数据
     pub fn display(&self) {
+        let mut ve = vec![];
         for (_, v) in &self.table {
+            ve.push(v);
+        }
+        ve.sort();
+        for v in ve {
             print!("{} ", v);
         }
         println!();
@@ -109,12 +118,11 @@ impl<K, V> Bucket<K, V>
 
     pub fn clear(&mut self) {
         self.table.clear();
-        println!("{}", self.table.len());
     }
 }
 
-impl<K, V> Directory<K, V> 
-    where K: Hash + Eq + Clone, V: std::fmt::Display + Clone + Copy
+impl<K, V> ExtendiableHash<K, V> 
+    where K: Hash + Eq + Clone, V: std::fmt::Display + Clone + Copy + Ord
 {
     pub fn new(global_depth: usize, bucket_cap: usize) -> Self {
         // TODO: 任意global_depth使能, 这里锁死不能为1
@@ -248,14 +256,16 @@ impl<K, V> Directory<K, V>
         // 新桶和旧桶关系: 仅最高bit不同
         let pair_bucket_id = bucket.borrow().pair_index(bucket_id);
         self.entries[pair_bucket_id] = Rc::new(RefCell::new(Bucket::new(self.bucket_cap, new_depth)));
-        let temp = bucket.borrow().copy_table();
-        bucket.borrow_mut().clear();
+
+        // let temp = bucket.borrow().copy_table();
+        // bucket.borrow_mut().clear();
 
         // ⭐计算其他待重新映射的桶⭐
         //
         // 目前已知两独立的桶: bucket_id, new_bucket_id
         // 所有entries中根据后缀重新映射桶
         // 原本是都是映射到bucket_id, 所以现在与new_bucket_id后缀相同的映射需要变动
+        // TODO: 试一下后缀算法
         let step = 1 << new_depth;
         for i in (pair_bucket_id..1<<self.global_depth).step_by(step) {
             self.entries[i] = self.entries[pair_bucket_id].clone();
@@ -263,8 +273,21 @@ impl<K, V> Directory<K, V>
         for i in (0..=pair_bucket_id).rev().step_by(step) {
             self.entries[i] = self.entries[pair_bucket_id].clone();
         }
+
         // 旧桶中数据重新分配
-        for (k, v) in temp {
+        // for (k, v) in temp {
+        //     self.insert(k, v);
+        // }
+        let mut kv_store = vec![];
+        for (k, v) in bucket.borrow_mut().table_mut() {
+            let id = self.hash(k);
+            // println!("======{:x} {:x} {:x}== {} {}", id & (1<<new_depth)-1, pair_bucket_id & (1<<new_depth)-1, bucket_id & (1<<new_depth)-1, new_depth, self.global_depth);
+            if id & (1<<new_depth)-1 == pair_bucket_id & (1<<new_depth)-1 {
+                kv_store.push((k.clone(), v.clone()));
+            }
+        }
+        for (k, v) in kv_store {
+            bucket.borrow_mut().table_mut().remove(&k);
             self.insert(k, v);
         }
     }
@@ -299,6 +322,8 @@ impl<K, V> Directory<K, V>
     /// 目录项翻倍, 全局深度增加, 目录项重新映射
     ///  重新映射的方法: 直接从头到位append, 因为二进制翻倍的特定, 后缀刚好能够相同
     fn grow(&mut self) {
+        // 使用reserve预留len+additional的空间, 防止频繁分配
+        self.entries.reserve(self.entries.len());
         for i in 0..1<<self.global_depth {
             self.entries.push(self.entries[i].clone())
         }

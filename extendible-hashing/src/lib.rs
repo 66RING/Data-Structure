@@ -1,3 +1,3 @@
-mod extendible_hashing;
+pub mod extendible_hashing;
 
-pub use extendible_hashing::*;
+pub use crate::extendible_hashing::*;

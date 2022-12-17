@@ -19,6 +19,18 @@
 
 难点是如何分裂
 
+TODO: 性能太拉了
+
+## TODO: 临时删除: why not refcell
+
+> Most operations will only touch the head or tail pointer. However when transitioning to or from the empty list, we need to edit both at once.
+
+一旦使用`RefCell`就不能离开它(e.g. move out of), 因为它需要一套机制来维护运行时借用检测。所以如果你只能将RefCell中内容用Ref的API:`Ref::map()`移到另一个`Ref<T>`中。**但是我们想要原汁原味的`&T`**
+
+RefCell会使用`Ref`/`RefMut`之类的东西包裹数据, 就是为了在`Ref`离开作用域后自动调用drop, 然后动态维护借用规则。
+
+
+
 ## rust tips
 
 - trait
@@ -27,6 +39,8 @@
     * 为何RefCell不好: ⭐ review 理清, 理解
         + https://rust-unofficial.github.io/too-many-lists/fourth-peek.html
         + https://users.rust-lang.org/t/how-to-return-reference-to-value-in-rc-or-refcell/76729
+- API
+    * 使用`vec::reserve(additional)`预留空间, 防止频繁realloc
 - 习俗
     * getter, setter命名规范: getter函数同名, setter函数前加个`set_`
 
@@ -162,6 +176,16 @@
 1. 找到相同后缀范围内的另一组对应的后缀: `idx = bucket_num ^ (1<<old_local_depth)`. 即不同位将出现在最高位
 2. 找到全局范围内是1中这个后缀的项, 归到一组: `for idx += (1<<new_local_depth)`
 
+⭐或者重新分配可以使用这个算法: 即利用相同后缀计算。
+
+```rust
+for prefix in 0..(1 << (self.depth - local_depth - 1)) {
+    let i = (idx & bitmask(local_depth) as usize)
+        | 1 << local_depth
+        | (prefix << (local_depth + 1)) as usize;
+    self.table[i] = b1.clone();
+}
+```
 
 
 

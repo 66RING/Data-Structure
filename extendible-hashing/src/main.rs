@@ -1,5 +1,5 @@
 use std::io;
-use extendible_hashing::{Directory, Mode};
+use ::extendible_hashing::*;
 
 
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
     let global_depth = line.trim().parse::<usize>().expect("not a num");
     // println!("bucket_size: {} , global_depth: {}", bucket_cap, global_depth);
 
-    let mut dir = Directory::new(global_depth, bucket_cap);
+    let mut dir = ExtendiableHash::new(global_depth, bucket_cap);
 
     loop {
         line.clear();
@@ -27,7 +27,7 @@ fn main() {
             },
             "delete" => {
                 let key = words.next().unwrap().parse::<i64>().unwrap();
-                dir.remove(&key, Mode::Shrink);
+                dir.remove(&key, Mode::No);
             },
             "update" => {
                 let key = words.next().unwrap().parse::<i64>().unwrap();
@@ -36,7 +36,6 @@ fn main() {
             },
             "search" => {
                 let key = words.next().unwrap().parse::<i64>().unwrap();
-                // let mut value = String::new();
                 let value =dir.get(&key);
                 println!("{:#?}", value);
             },
