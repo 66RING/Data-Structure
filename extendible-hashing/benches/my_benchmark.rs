@@ -7,6 +7,7 @@ use extendible_hashing::{ExtendiableHash, Mode};
 type K = u64;
 type V = u64;
 const SET_SIZE: usize = 1 << 10;
+const BUKCET_SIZE: usize = 1000;
 fn create_workload() -> Vec<(K, V)> {
     let mut v = vec![];
     v.resize(SET_SIZE, (0, 0));
@@ -17,7 +18,7 @@ fn create_workload() -> Vec<(K, V)> {
 }
 
 fn stress_crate_no(workload: &Vec<(K, V)>) {
-    let mut m = ExtendiableHash::new(2, 32);
+    let mut m = ExtendiableHash::new(2, BUKCET_SIZE);
     for (k, v) in workload {
         m.insert(k, v);
     }
@@ -26,7 +27,7 @@ fn stress_crate_no(workload: &Vec<(K, V)>) {
     }
 }
 fn stress_crate_merge(workload: &Vec<(K, V)>) {
-    let mut m = ExtendiableHash::new(2, 32);
+    let mut m = ExtendiableHash::new(2, BUKCET_SIZE);
     for (k, v) in workload {
         m.insert(k, v);
     }
@@ -35,7 +36,7 @@ fn stress_crate_merge(workload: &Vec<(K, V)>) {
     }
 }
 fn stress_crate_shrink(workload: &Vec<(K, V)>) {
-    let mut m = ExtendiableHash::new(2, 32);
+    let mut m = ExtendiableHash::new(2, BUKCET_SIZE);
     for (k, v) in workload {
         m.insert(k, v);
     }

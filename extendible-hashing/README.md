@@ -14,35 +14,34 @@
     1. 重新映射: 有的桶不需要分裂, 但因为目录扩大了, 要想下次哈希找到一样的桶, 就需要修改目录中桶的映射
     2. 重新分配: 桶本身元素已满, 需要分裂和元素迁移
 4. 删除与合并
-    - TODO:
 
 
 难点是如何分裂
 
-TODO: 性能太拉了
+TODO: 性能太拉了, 开销在split里的数据拷贝, 桶开大了(e.g. 1000)性能就行了
 
-## TODO: 临时删除: why not refcell
+
+## rust tips
+
+- trait
+    * 哈希操作: 创建一个哈希器`DefaultHasher::new()`, 用它做哈希然后调用`finish`返回哈希结果
+    * 为何RefCell不好: ⭐ review 理清, 理解
+        + https://rust-unofficial.github.io/too-many-lists/fourth-peek.html
+        + https://users.rust-lang.org/t/how-to-return-reference-to-value-in-rc-or-refcell/76729
+- API
+    * 使用`vec::reserve(additional)`预留空间, 防止频繁realloc
+        + e.g. 创建新桶时, 目录扩展时
+- 习俗
+    * getter, setter命名规范: getter函数同名, setter函数前加个`set_`
+
+
+### why not refcell
 
 > Most operations will only touch the head or tail pointer. However when transitioning to or from the empty list, we need to edit both at once.
 
 一旦使用`RefCell`就不能离开它(e.g. move out of), 因为它需要一套机制来维护运行时借用检测。所以如果你只能将RefCell中内容用Ref的API:`Ref::map()`移到另一个`Ref<T>`中。**但是我们想要原汁原味的`&T`**
 
 RefCell会使用`Ref`/`RefMut`之类的东西包裹数据, 就是为了在`Ref`离开作用域后自动调用drop, 然后动态维护借用规则。
-
-
-
-## rust tips
-
-- trait
-    * bit操作: TODO
-    * 哈希操作: TODO
-    * 为何RefCell不好: ⭐ review 理清, 理解
-        + https://rust-unofficial.github.io/too-many-lists/fourth-peek.html
-        + https://users.rust-lang.org/t/how-to-return-reference-to-value-in-rc-or-refcell/76729
-- API
-    * 使用`vec::reserve(additional)`预留空间, 防止频繁realloc
-- 习俗
-    * getter, setter命名规范: getter函数同名, setter函数前加个`set_`
 
 
 ## bucket
@@ -75,7 +74,6 @@ RefCell会使用`Ref`/`RefMut`之类的东西包裹数据, 就是为了在`Ref`�
     * 在桶上做哈希插入
     * 当桶大小超过阈值时桶分裂
     * 如果分裂的桶的深度`local_depth`与全局深度`global_depth`相同, 则目录需要扩容
-    * TODO:
 - `remove()`
     * 根据全局深度找桶
     * 桶(哈希表)元素删除
@@ -94,7 +92,7 @@ RefCell会使用`Ref`/`RefMut`之类的东西包裹数据, 就是为了在`Ref`�
     * 插入新entry然后重新分配
         1. 扩容: dep + 基本remap
         2. 迁移: 两种情况⭐`local_depth == global_depth`的桶和`local_depth != global_depth`的桶, 甚至可能`local_depth`落后`global_depth`很多
-            - TODO: 大总结: 为什么需要(`local_depth`落后`global_depth`很多⭐⭐⭐)
+            - 大总结: 为什么需要(`local_depth`落后`global_depth`很多⭐⭐⭐)
                 * 开新章节说明这种情况
                 * ⭐⭐这种情况下即要分裂又要重新分配: 比如原来的桶被4个entry引用, 但是这个桶分裂了。应该会出现两个桶, 每个桶被2个entry引用。而不应该分裂后出现`1:3`的引用
 - ⭐ `merge()`
@@ -102,7 +100,7 @@ RefCell会使用`Ref`/`RefMut`之类的东西包裹数据, 就是为了在`Ref`�
     * 如果对应桶的深度和当前桶深度匹配则可以可并:
         + 删除当前桶
         + 对应桶领养当前的目录项
-    * TODO: 重写
+    * 当不存在`local_depth == global_depth`的桶时, 必然存在一个桶被前后两部分引用, 因此可以安全删除后半部分
 - `shrink()`
     * 遍历所有桶, 当没有桶的深度等于全局深度时, 目录收缩
         + `global_depth--`
@@ -128,8 +126,10 @@ RefCell会使用`Ref`/`RefMut`之类的东西包裹数据, 就是为了在`Ref`�
     * 桶id计算方式错误, 应该为`n&((1<<global_depth)-1)`
 - 分裂后要根据新的depth做哈希找桶插入
 - 需要注意已存在的kv就不做insert, **也不做split**
-- TODO:
-    * 初始桶深度和全局深度相同
+- 初始桶深度和全局深度相同
+    * 初始状态必须是1:1映射的, 且桶深度应该和全局深度一致
+        + 否则还得考虑哪些桶N:1, 他们的本地深度如何
+- 注意内存预分配
 
 
 ### ⭐⭐⭐搞清楚几个关键的位运算

@@ -29,8 +29,11 @@ impl<K, V> Bucket<K, V>
     where K: Hash + Eq + Clone, V: std::fmt::Display + Clone + Copy + Ord
 {
     pub fn new(bucket_cap: usize, local_depth: usize) -> Self {
+        let mut table = HashMap::new();
+        // 提前预分配
+        table.reserve(bucket_cap);
         Self {
-            table: HashMap::new(),
+            table,
             bucket_cap,
             local_depth,
         }
@@ -111,23 +114,14 @@ impl<K, V> Bucket<K, V>
         }
         println!();
     }
-
-    pub fn copy_table(&self) -> HashMap<K, V> {
-        self.table.clone()
-    }
-
-    pub fn clear(&mut self) {
-        self.table.clear();
-    }
 }
 
 impl<K, V> ExtendiableHash<K, V> 
     where K: Hash + Eq + Clone, V: std::fmt::Display + Clone + Copy + Ord
 {
     pub fn new(global_depth: usize, bucket_cap: usize) -> Self {
-        // TODO: 任意global_depth使能, 这里锁死不能为1
-        // review: 这里初始全都映射成一个桶了, 就可以不锁死了，即使哈希不到也是0, 也有一个桶
-        // assert!(global_depth != 1);
+        // 这里保证了每个目录项必有一个桶
+        assert!(global_depth > 0);
 
         let mut entries = vec![];
         for _ in 0..(1<<global_depth) {
@@ -140,11 +134,9 @@ impl<K, V> ExtendiableHash<K, V>
         }
     }
 
-    /// TODO: 目录为空时的插入, 怎么保证目录自动增长?
-    /// 不可能目录为空, 因为global_depth: usize最小为0, 即会有一个桶。**但是哈希不到**
-    /// 一个方法是初始一个桶, 所以entry都映射到这个桶, 自动分裂
-    /// TODO: rust中的多重所有权
-    ///
+    // 目录为空时的插入, 怎么保证目录自动增长?
+    // 不可能目录为空, 因为global_depth: usize最小为0, 即会至少有一个桶
+    //
     /// 找到相应的桶做插入操作, 当桶满时自动分裂
     pub fn insert(&mut self, key: K, value: V) -> bool {
         let bucket_id = self.hash(&key);
@@ -257,9 +249,6 @@ impl<K, V> ExtendiableHash<K, V>
         let pair_bucket_id = bucket.borrow().pair_index(bucket_id);
         self.entries[pair_bucket_id] = Rc::new(RefCell::new(Bucket::new(self.bucket_cap, new_depth)));
 
-        // let temp = bucket.borrow().copy_table();
-        // bucket.borrow_mut().clear();
-
         // ⭐计算其他待重新映射的桶⭐
         //
         // 目前已知两独立的桶: bucket_id, new_bucket_id
@@ -274,10 +263,8 @@ impl<K, V> ExtendiableHash<K, V>
             self.entries[i] = self.entries[pair_bucket_id].clone();
         }
 
+        // TODO: 数据拷贝开销怎么解决
         // 旧桶中数据重新分配
-        // for (k, v) in temp {
-        //     self.insert(k, v);
-        // }
         let mut kv_store = vec![];
         for (k, v) in bucket.borrow_mut().table_mut() {
             let id = self.hash(k);
@@ -286,6 +273,7 @@ impl<K, V> ExtendiableHash<K, V>
                 kv_store.push((k.clone(), v.clone()));
             }
         }
+
         for (k, v) in kv_store {
             bucket.borrow_mut().table_mut().remove(&k);
             self.insert(k, v);
